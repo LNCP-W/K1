@@ -1,0 +1,18 @@
+from pydantic import BaseModel
+
+
+class TokenSchema(BaseModel):
+    access_token: str
+    token_type: str
+
+    class Config:
+        json_schema_extra = {
+            'example': {
+                'access_token': '<KEY>',
+                'token_type': 'bearer',
+            }
+        }
+
+
+class TokenDataSchema(BaseModel):
+    username: str | None = None

@@ -1,0 +1,98 @@
+version: "3"
+services:
+
+  db:
+    image: "postgres:17"
+    restart: always
+    volumes:
+      - "/mnt/postgres_data:/var/lib/postgresql/data"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    expose:
+      - 5432
+
+
+  base_app: &base_app
+    build: app
+    depends_on:
+      - db
+      - redis
+
+    env_file:
+      - .env
+    volumes:
+      - "/mnt/static_volume:/app/staticfiles"
+      - "/etc/localtime:/etc/localtime"
+      - '/mnt/logs:/app/logs'
+
+  api:
+    <<: *base_app
+
+    restart: always
+    command: ./run.sh
+    ports:
+      - "8001:8001"
+      - "8000:8000"
+
+
+
+
+  nginx:
+    build: nginx
+    volumes:
+      - "./nginx/conf:/etc/nginx/conf.d"
+      - "/mnt/certbot/conf:/etc/letsencrypt"
+      - "/mnt/certbot/www:/var/www/certbot"
+      - "/mnt/static_volume:/app/staticfiles"
+
+    env_file:
+      - .env
+    entrypoint: /nginx-entrypoint.sh
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    ports:
+      - "8080:80"
+      - "8443:443"
+    depends_on:
+      - api
+
+
+
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - "/mnt/certbot/conf:/etc/letsencrypt"
+      - "/mnt/certbot/www:/var/www/certbot"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+
+  redis:
+    image: redis:alpine
+    restart: always
+    volumes:
+      - redis-data:/data
+
+    ports:
+      - "6379:6379"
+
+
+  celery:
+    <<: *base_app
+    command: poetry run celery -A core worker --loglevel=info
+
+  celery-beat:
+    <<: *base_app
+    command: poetry run celery -A core beat --loglevel=info
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  redis-data:
