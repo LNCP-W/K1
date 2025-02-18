@@ -11,6 +11,10 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+from config import settings
+import logging
+from .logger import LOGGING
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +24,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-v_zdv(pm^idc%*62)k!2!#r#^mb6_t)$p5frsbc-p$4j+et57b"
+SECRET_KEY = settings.django.secret_key
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = settings.debug
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["0.0.0.0", "127.0.0.1", settings.domain]
 
 
 # Application definition
@@ -76,8 +80,12 @@ WSGI_APPLICATION = "core.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": settings.db.engine,
+        "NAME": settings.db.name,
+        "USER": settings.db.username,
+        "PASSWORD": settings.db.password,
+        "HOST": settings.db.host,
+        "PORT": settings.db.port,
     }
 }
 
@@ -111,14 +119,36 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 
 USE_TZ = True
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+AUTH_USER_MODEL = "django_app.UserModel"
 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = "static/"
-
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# Creating CSRF configuration
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_TRUSTED_ORIGINS = [f"https://*.{settings.domain}", "https://*.127.0.0.1"]
+
+# Creating Celery configuration
+
+CELERY_BROKER_URL = f"redis://{settings.redis.host}:{settings.redis.port}/0"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_BACKEND = f"redis://{settings.redis.host}:{settings.redis.port}/0"
+CELERY_TIMEZONE = "UTC"
+CELERY_IMPORTS = ("core.tasks",)
+CELERY_BEAT_SCHEDULE = {
+    "load-data-task": {
+        "task": "core.tasks.load_data",
+        "schedule": settings.task.every,
+    },
+}

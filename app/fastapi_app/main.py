@@ -1,20 +1,34 @@
 import os
+from pathlib import Path
+from config import settings
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
-import django
-django.setup()
-
+import logging
 from fastapi import FastAPI
-from asgiref.sync import sync_to_async
-from django_app.models import User
+from fastapi_app.routers import block_router, user_router, security_router
 
 
-app = FastAPI()
+def get_fastapi() -> FastAPI:
+    """FastAPI initialization"""
 
-async def get_user():
-    users = await sync_to_async(lambda: list(User.objects.all()))()
-    return users
+    # Create logger
+    logger = logging.getLogger("fastapi")
+    logger.setLevel(settings.loglevel)
+    file_handler = logging.FileHandler("/app/logs/fastapi.log")
+    file_handler.setLevel(settings.loglevel)
+    formatter = logging.Formatter("%(levelname)s %(name)s %(message)s %(asctime)s")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
-@app.get("/items/")
-async def read_items():
-    items = await get_user()
-    return items
+    # Create app
+    app = FastAPI()
+
+    # Add routers
+    app.include_router(block_router)
+    app.include_router(user_router)
+    app.include_router(security_router)
+    # Folder creation
+    Path("static").mkdir(parents=True, exist_ok=True)
+    Path("media").mkdir(parents=True, exist_ok=True)
+
+    return app
